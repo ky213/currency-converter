@@ -22,125 +22,189 @@
 </template>
 
 <script>
-  import axios from 'axios'
-  import CountryList from './CountryList.vue'
-  import Input from './Input.vue'
-  
-  export default {
-    data: function() {
-      return {
-        listCountries: false,
-        focusInput: '',
-        fromCurrency: '',
-        fromCurrencyCode: '',
-        fromCurrencySymbol: '$',
-        toCurrency: '',
-        toCurrencyCode: '',
-        toCurrencySymbol: '€',
-        amount: '',
-        result: '0.00'
-      }
+import axios from "axios";
+import idb from "idb";
+import CountryList from "./CountryList.vue";
+import Input from "./Input.vue";
+
+const database = idb.open("pwa-currency-converter", 1, function(upgradeDB) {
+  const store = upgradeDB.createObjectStore("exchange-rates");
+});
+
+export default {
+  data: function() {
+    return {
+      listCountries: false,
+      focusInput: "",
+      fromCurrency: "",
+      fromCurrencyCode: "",
+      fromCurrencySymbol: "$",
+      toCurrency: "",
+      toCurrencyCode: "",
+      toCurrencySymbol: "€",
+      amount: "",
+      result: "0.00"
+    };
+  },
+  watch: {
+    fromCurrency: function(n) {
+      this.findCountry(n);
     },
-    watch: {
-      fromCurrency: function(n) {
-        this.findCountry(n)
-      },
-      toCurrency: function(n) {
-        this.findCountry(n)
-      },
-      amount: async function(newValue) {
-        const conversion = this.fromCurrencyCode + '_' + this.toCurrencyCode
-        const request = 'https://free.currencyconverterapi.com/api/v5/convert?q=' + conversion + '&compact=ultra'
-  
-        if (!parseFloat(newValue))
-          this.result = '0.00'
-        else
-          this.result = await axios(request).then((res) => parseFloat((res.data[conversion] * newValue).toPrecision()).toFixed(6))
-      }
+    toCurrency: function(n) {
+      this.findCountry(n);
     },
-    methods: {
-      selectCountry({
-        countryName,
-        currencyCode,
-        currencySymbol
-      }) {
-        if (this.focusInput === 'fromCurrency') {
-          this.fromCurrency = countryName
-          this.fromCurrencyCode = currencyCode
-          this.fromCurrencySymbol = currencySymbol
-        } else {
-          this.toCurrency = countryName
-          this.toCurrencyCode = currencyCode
-          this.toCurrencySymbol = currencySymbol
-        }
-        this.listCountries = false
-      },
-      findCountry(currency) {
-        const exp = new RegExp(currency, 'i')
-        const countries = document.querySelectorAll('li')
-        countries.forEach(country => {
-          if (!country.id.toLowerCase().match(exp))
-            country.style.display = 'none'
-          else
-            country.style.display = 'block'
-        });
-      },
-      swapCurrencies() {
-        const {
-          fromCurrency,
-          fromCurrencySymbol
-        } = this.$data
-        this.fromCurrency = this.toCurrency
-        this.fromCurrencySymbol = this.toCurrencySymbol
-        this.toCurrency = fromCurrency
-        this.toCurrencySymbol = fromCurrencySymbol
-        this.result = parseFloat((this.amount**2/this.result).toPrecision()).toFixed(6)
-      }
+    amount: function(newValue) {
+      this.getExchangeRate(newValue);
     },
-    components: {
-      CountryList,
-      Input
+    fromCurrencyCode: function() {
+      this.getExchangeRate(this.amount);
+    },
+    toCurrencyCode: function() {
+      this.getExchangeRate(this.amount);
     }
-  };
+  },
+  methods: {
+    selectCountry({ countryName, currencyCode, currencySymbol }) {
+      if (this.focusInput === "fromCurrency") {
+        this.fromCurrency = countryName;
+        this.fromCurrencyCode = currencyCode;
+        this.fromCurrencySymbol = currencySymbol;
+      } else {
+        this.toCurrency = countryName;
+        this.toCurrencyCode = currencyCode;
+        this.toCurrencySymbol = currencySymbol;
+      }
+      this.listCountries = false;
+    },
+    findCountry(currency) {
+      const exp = new RegExp(currency, "i");
+      const countries = document.querySelectorAll("li");
+      countries.forEach(country => {
+        if (!country.id.toLowerCase().match(exp))
+          country.style.display = "none";
+        else country.style.display = "block";
+      });
+    },
+    swapCurrencies() {
+      const { fromCurrency, fromCurrencySymbol } = this.$data;
+      this.fromCurrency = this.toCurrency;
+      this.fromCurrencySymbol = this.toCurrencySymbol;
+      this.toCurrency = fromCurrency;
+      this.toCurrencySymbol = fromCurrencySymbol;
+      this.result = parseFloat(
+        (this.amount ** 2 / this.result).toPrecision()
+      ).toFixed(6);
+    },
+    getExchangeRate: async function(newValue) {
+      const conversion = this.fromCurrencyCode + "_" + this.toCurrencyCode;
+      const request =
+        "https://free.currencyconverterapi.com/api/v5/convert?q=" +
+        conversion +
+        "&compact=ultra";
+
+      if (!parseFloat(newValue)) this.result = "0.00";
+      else
+        this.result = await axios(request)
+          .then(res =>
+            parseFloat((res.data[conversion] * newValue).toPrecision()).toFixed(
+              6
+            )
+          )
+          .catch(error => {
+            const fc = this.fromCurrencyCode;
+            const tc = this.toCurrencyCode;
+            return database.then(async function(db) {
+              const tx = db.transaction("exchange-rates");
+              const exchangeRates = tx.objectStore("exchange-rates");
+              const fc_db = await exchangeRates.get(fc + "_USD");
+              const tc_db = await exchangeRates.get(tc + "_USD");
+              const rate_db = fc_db / tc_db;
+              return parseFloat((rate_db * newValue).toPrecision()).toFixed(6);
+            });
+          });
+    }
+  },
+  components: {
+    CountryList,
+    Input
+  },
+  beforeCreate: async function() {
+    const response = await fetch(
+      "https://free.currencyconverterapi.com/api/v6/currencies"
+    );
+    const currencies = await response.json();
+    const rates = [];
+    const requestLines = [];
+    const newRates = [];
+
+    for (const currency in currencies.results) {
+      rates.push(currency + "_USD");
+    }
+    for (let i = 0; i < rates.length; i += 2) {
+      const conversion = rates[i + 1]
+        ? rates[i] + "," + rates[i + 1]
+        : rates[i];
+      const request =
+        "https://free.currencyconverterapi.com/api/v6/convert?q=" +
+        conversion +
+        "&compact=ultra";
+      requestLines.push(request);
+    }
+    for (let i = 0; i < requestLines.length; i++) {
+      const newResponse = await fetch(requestLines[i]);
+      newRates.push(await newResponse.json());
+    }
+
+    database.then(function(db) {
+      const tx = db.transaction("exchange-rates", "readwrite");
+      const exchangeRates = tx.objectStore("exchange-rates");
+      newRates.forEach(function(newRate) {
+        for (const element in newRate) {
+          exchangeRates.put(newRate[element], element);
+        }
+      });
+    });
+  }
+};
 </script>
 
 <style lang="scss" scoped>
-  #input-group {
-    position: relative;
-    #cover {
-      position: absolute;
-      top: -6px;
-      left: 0;
-    }
+#input-group {
+  position: relative;
+  #cover {
+    position: absolute;
+    top: -6px;
+    left: 0;
   }
-  
-  #amount {
-    font-size: 30px;
-  }
-  
-  #arrows {
-    font-weight: bold;
-    font-size: 3rem;
-    cursor: pointer;
-    line-height: 21px;
-  }
-  
-  #arrows:hover {
-    color: lightgreen !important;
-  }
+}
 
-  .card{
-    border-width: 3px;
+#amount {
+  font-size: 30px;
+}
+
+#arrows {
+  font-weight: bold;
+  font-size: 3rem;
+  cursor: pointer;
+  line-height: 21px;
+}
+
+#arrows:hover {
+  color: lightgreen !important;
+}
+
+.card {
+  border-width: 3px;
+}
+
+@media (max-width: 600px) {
+  #arrows {
+    transform: rotate(90deg);
+    width: 60px;
+    height: 30px;
+    margin: auto;
   }
-  
-  @media(max-width: 600px) {
-    #arrows {
-      transform: rotate(90deg);
-      width: 60px;
-      height: 30px;
-      margin: auto;
-    }
-  }
+}
 </style>
 
   
