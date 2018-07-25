@@ -27,13 +27,10 @@ import idb from "idb";
 import CountryList from "./CountryList.vue";
 import Input from "./Input.vue";
 
-<<<<<<< HEAD
 const database = idb.open("pwa-currency-converter", 1, function(upgradeDB) {
   const store = upgradeDB.createObjectStore("exchange-rates");
 });
 
-=======
->>>>>>> 4c2c33a114e331dd405ae1840da84f5366492de9
 export default {
   data: function() {
     return {
@@ -78,7 +75,6 @@ export default {
         this.toCurrencySymbol = currencySymbol;
       }
       this.listCountries = false;
-<<<<<<< HEAD
     },
     findCountry(currency) {
       const exp = new RegExp(currency, "i");
@@ -89,18 +85,6 @@ export default {
         else country.style.display = "block";
       });
     },
-=======
-    },
-    findCountry(currency) {
-      const exp = new RegExp(currency, "i");
-      const countries = document.querySelectorAll("li");
-      countries.forEach(country => {
-        if (!country.id.toLowerCase().match(exp))
-          country.style.display = "none";
-        else country.style.display = "block";
-      });
-    },
->>>>>>> 4c2c33a114e331dd405ae1840da84f5366492de9
     swapCurrencies() {
       const { fromCurrency, fromCurrencySymbol } = this.$data;
       this.fromCurrency = this.toCurrency;
@@ -120,7 +104,6 @@ export default {
 
       if (!parseFloat(newValue)) this.result = "0.00";
       else
-<<<<<<< HEAD
         this.result = await axios(request)
           .then(res =>
             parseFloat((res.data[conversion] * newValue).toPrecision()).toFixed(
@@ -139,11 +122,6 @@ export default {
               return parseFloat((rate_db * newValue).toPrecision()).toFixed(6);
             });
           });
-=======
-        this.result = await axios(request).then(res =>
-          parseFloat((res.data[conversion] * newValue).toPrecision()).toFixed(6)
-        );
->>>>>>> 4c2c33a114e331dd405ae1840da84f5366492de9
     }
   },
   components: {
@@ -151,19 +129,12 @@ export default {
     Input
   },
   beforeCreate: async function() {
-<<<<<<< HEAD
-=======
-    const database  = idb.open("pwa-currency-converter", 1, function(upgradeDB) {
-      const store = upgradeDB.createObjectStore("exchange-rates");
-    });
->>>>>>> 4c2c33a114e331dd405ae1840da84f5366492de9
     const response = await fetch(
       "https://free.currencyconverterapi.com/api/v6/currencies"
     );
     const currencies = await response.json();
     const rates = [];
     const requestLines = [];
-<<<<<<< HEAD
     const newRates = [];
 
     for (const currency in currencies.results) {
@@ -173,22 +144,12 @@ export default {
       const conversion = rates[i + 1]
         ? rates[i] + "," + rates[i + 1]
         : rates[i];
-=======
-
-    for (const currency in currencies.results) {
-      if (currency === "USD") continue;
-      rates.push("USD_" + currency);
-    }
-    for (let i = 0; i < rates.length; i += 2) {
-      const conversion = rates[i+1] ? rates[i] + "," + rates[i + 1] : rates[i]
->>>>>>> 4c2c33a114e331dd405ae1840da84f5366492de9
       const request =
         "https://free.currencyconverterapi.com/api/v6/convert?q=" +
         conversion +
         "&compact=ultra";
       requestLines.push(request);
     }
-<<<<<<< HEAD
     for (let i = 0; i < requestLines.length; i++) {
       const newResponse = await fetch(requestLines[i]);
       newRates.push(await newResponse.json());
@@ -203,24 +164,6 @@ export default {
         }
       });
     });
-=======
-    const newRates = []
-    for(let i=0; i<requestLines.length;i++) {
-      setTimeout(() => {console.log("Requesting!!!!",i);}, 500);
-      const newResponse = await fetch(requestLines[i])
-      newRates.push(await newResponse.json())
-    }
-
-    database.then(function (db) {
-      const tx = db.transaction('exchange-rates','readwrite')
-      const exchangeRates = tx.objectStore('exchange-rates')
-      newRates.forEach(function (newRate) {
-        for (const element in newRate) {
-        exchangeRates.put(newRate[element],element)          
-        }
-      })
-    })
->>>>>>> 4c2c33a114e331dd405ae1840da84f5366492de9
   }
 };
 </script>
