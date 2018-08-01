@@ -1,6 +1,7 @@
 <template>
   <div class="row mt-5">
     <div class="col col-sm-11 col-md-9 col-lg-7 mx-auto mt-5  ">
+      <p class="alert alert-info text-muted">Last Update {{ lastUpdate.toLocaleString()}}</p>
       <div class="card border-primary shadow  ">
         <h4 class="card-header bg-primary text-center rounded-0">Currency Converter</h4>
         <div class="card-body">
@@ -27,7 +28,7 @@ import idb from "idb";
 import CountryList from "./CountryList.vue";
 import Input from "./Input.vue";
 
-const database = idb.open("pwa-currency-converter", 1, function(upgradeDB) {
+const database = idb.open("pwa-currency-converter", 2, function(upgradeDB) {
   const store = upgradeDB.createObjectStore("exchange-rates");
 });
 
@@ -43,7 +44,8 @@ export default {
       toCurrencyCode: "",
       toCurrencySymbol: "€",
       amount: "",
-      result: "0.00"
+      result: "0.00",
+      lastUpdate: new Date()
     };
   },
   watch: {
@@ -80,7 +82,7 @@ export default {
       const exp = new RegExp(currency, "i");
       const countries = document.querySelectorAll("li");
       countries.forEach(country => {
-        if (!country.id.toLowerCase().match(exp))
+        if (!country.innerText.toLowerCase().match(exp))
           country.style.display = "none";
         else country.style.display = "block";
       });
@@ -135,7 +137,6 @@ export default {
     const currencies = await response.json();
     const rates = [];
     const requestLines = [];
-    const newRates = [];
 
     for (const currency in currencies.results) {
       rates.push(currency + "_USD");
@@ -150,20 +151,39 @@ export default {
         "&compact=ultra";
       requestLines.push(request);
     }
-    for (let i = 0; i < requestLines.length; i++) {
-      const newResponse = await fetch(requestLines[i]);
-      newRates.push(await newResponse.json());
-    }
 
-    database.then(function(db) {
-      const tx = db.transaction("exchange-rates", "readwrite");
-      const exchangeRates = tx.objectStore("exchange-rates");
-      newRates.forEach(function(newRate) {
-        for (const element in newRate) {
-          exchangeRates.put(newRate[element], element);
+    //Updating Time
+
+    const db = await database.then(db => db);
+    const tx = db.transaction("exchange-rates", "readwrite");
+    const exchangeRates = tx.objectStore("exchange-rates");
+    const newUpdate = new Date();
+    const lastUpdate = (await exchangeRates.get("last update")) || newUpdate;
+    const updateInterval = newUpdate - lastUpdate;
+
+    if (updateInterval < 60 * 60 * 1000 && updateInterval !== 0) return;
+
+    requestLines.forEach(async function(requestLine) {
+      const newResponse = await fetch(requestLine);
+      if (newResponse.status === 200) {
+        const conversion = await newResponse.json();
+        const db = await database.then(db => db);
+        const tx = db.transaction("exchange-rates", "readwrite");
+        const exchangeRates = tx.objectStore("exchange-rates");
+
+        exchangeRates.put(new Date(), "last update");
+        for (const element in conversion) {
+          exchangeRates.put(conversion[element], element);
         }
-      });
+      }
     });
+  },
+  mounted: async function() {
+    const db = await database.then(db => db);
+    const tx = db.transaction("exchange-rates");
+    const exchangeRates = tx.objectStore("exchange-rates");
+
+    this.lastUpdate = (await exchangeRates.get("last update")) || new Date();
   }
 };
 </script>
