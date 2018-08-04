@@ -3,11 +3,11 @@
     "short_name": "pcc",
     "icons": [
       {
-        "src": "/money.svg",
+        "src": "img/money.svg",
         "type": "image/svg"
       },
       {
-        "src": "/money.png",
+        "src": "img/money.png",
         "sizes":"256x256",
         "type": "image/png"
       }

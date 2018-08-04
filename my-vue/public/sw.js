@@ -6,9 +6,9 @@ self.addEventListener("install", function(event) {
       cache
         .addAll([
           "/",
-          "js/app.565676f5.js",
-          "js/chunk-vendors.8e15b4b0.js",
-          "css/app.e12af5ed.css",
+          "js/app.d560a909.js",
+          "js/chunk-vendors.264ee0bf.js",
+          "css/app.97137703.css",
           "css/chunk-vendors.3f7932d1.css",
           "https://restcountries.eu/rest/v2/all?fields=name;flag;currencies"
         ])

@@ -1,7 +1,7 @@
 <template>
   <div class="row mt-5">
     <div class="col col-sm-11 col-md-9 col-lg-7 mx-auto mt-5  ">
-      <p class="alert alert-info text-muted">Last Update {{ lastUpdate.toLocaleString()}}</p>
+      <p v-if="offline" class="alert alert-danger text-muted">Last Update {{ lastUpdate ? lastUpdate.toLocaleString() : ""}} (offline)</p>
       <div class="card border-primary shadow  ">
         <h4 class="card-header bg-primary text-center rounded-0">Currency Converter</h4>
         <div class="card-body">
@@ -45,7 +45,8 @@ export default {
       toCurrencySymbol: "€",
       amount: "",
       result: "0.00",
-      lastUpdate: new Date()
+      lastUpdate: null,
+      offline: false
     };
   },
   watch: {
@@ -88,16 +89,19 @@ export default {
       });
     },
     swapCurrencies() {
-      const { fromCurrency, fromCurrencySymbol } = this.$data;
+      const { fromCurrency, fromCurrencyCode, fromCurrencySymbol } = this.$data;
       this.fromCurrency = this.toCurrency;
+      this.fromCurrencyCode = this.toCurrencyCode;
       this.fromCurrencySymbol = this.toCurrencySymbol;
       this.toCurrency = fromCurrency;
+      this.toCurrencyCode = fromCurrencyCode;
       this.toCurrencySymbol = fromCurrencySymbol;
       this.result = parseFloat(
         (this.amount ** 2 / this.result).toPrecision()
       ).toFixed(6);
     },
     getExchangeRate: async function(newValue) {
+      const converter = this;
       const conversion = this.fromCurrencyCode + "_" + this.toCurrencyCode;
       const request =
         "https://free.currencyconverterapi.com/api/v5/convert?q=" +
@@ -107,20 +111,26 @@ export default {
       if (!parseFloat(newValue)) this.result = "0.00";
       else
         this.result = await axios(request)
-          .then(res =>
-            parseFloat((res.data[conversion] * newValue).toPrecision()).toFixed(
-              6
-            )
-          )
+          .then(res => {
+            const result = parseFloat(
+              (res.data[conversion] * newValue).toPrecision()
+            ).toFixed(6);
+            converter.offline = false;
+            return result;
+          })
           .catch(error => {
-            const fc = this.fromCurrencyCode;
-            const tc = this.toCurrencyCode;
             return database.then(async function(db) {
               const tx = db.transaction("exchange-rates");
               const exchangeRates = tx.objectStore("exchange-rates");
-              const fc_db = await exchangeRates.get(fc + "_USD");
-              const tc_db = await exchangeRates.get(tc + "_USD");
+              const fc_db = await exchangeRates.get(
+                converter.fromCurrencyCode + "_USD"
+              );
+              const tc_db = await exchangeRates.get(
+                converter.toCurrencyCode + "_USD"
+              );
               const rate_db = fc_db / tc_db;
+
+              converter.offline = true;
               return parseFloat((rate_db * newValue).toPrecision()).toFixed(6);
             });
           });
@@ -131,6 +141,7 @@ export default {
     Input
   },
   beforeCreate: async function() {
+    const converter = this;
     const response = await fetch(
       "https://free.currencyconverterapi.com/api/v6/currencies"
     );
@@ -170,20 +181,21 @@ export default {
         const db = await database.then(db => db);
         const tx = db.transaction("exchange-rates", "readwrite");
         const exchangeRates = tx.objectStore("exchange-rates");
-
-        exchangeRates.put(new Date(), "last update");
+        const lastUpdate = new Date();
         for (const element in conversion) {
           exchangeRates.put(conversion[element], element);
         }
+        exchangeRates.put(lastUpdate, "last update");
       }
     });
   },
   mounted: async function() {
-    const db = await database.then(db => db);
-    const tx = db.transaction("exchange-rates");
-    const exchangeRates = tx.objectStore("exchange-rates");
+      const db = await database.then(db => db);
+      const tx = db.transaction("exchange-rates");
+      const exchangeRates = tx.objectStore("exchange-rates");
 
-    this.lastUpdate = (await exchangeRates.get("last update")) || new Date();
+     this.lastUpdate = await exchangeRates.get("last update")
+    
   }
 };
 </script>
