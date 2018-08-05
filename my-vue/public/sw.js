@@ -1,4 +1,4 @@
-var staticCacheName = "pwa-currency-converter-v1";
+var staticCacheName = "pwa-currency-converter-v3";
 
 self.addEventListener("install", function(event) {
   event.waitUntil(
@@ -10,6 +10,7 @@ self.addEventListener("install", function(event) {
           "js/chunk-vendors.264ee0bf.js",
           "css/app.97137703.css",
           "css/chunk-vendors.3f7932d1.css",
+          "img/europe.png",
           "https://restcountries.eu/rest/v2/all?fields=name;flag;currencies"
         ])
         .then(async function() {
@@ -22,12 +23,21 @@ self.addEventListener("install", function(event) {
         });
     })
   );
+  self.skipWaiting();
 });
 
 self.addEventListener("fetch", function(event) {
   event.respondWith(
-    caches.match(event.request).then(function(response) {
-      return response || fetch(event.request);
+    caches.open(staticCacheName).then(function(cache) {
+      return cache.match(event.request).then(function(response) {
+        return (
+          response ||
+          fetch(event.request).then(function(response) {
+            cache.put(event.request, response.clone());
+            return response;
+          })
+        );
+      });
     })
   );
 });
